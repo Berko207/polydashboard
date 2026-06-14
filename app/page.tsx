@@ -1,1 +1,1 @@
-use client import React useState useEffect useMemo useCallback from react full correct PolyDashboard code with all tabs Overview Scanner Edge Tools Watchlist, buttons, modals, Gamma API fetching, probability display, Kelly tool, watchlist, dark trading theme, and proper JSX rendering as per expert structure
+use client import React useState useEffect useMemo useCallback from react full correct code from sandbox file which starts with use client and has all the proper interfaces utilities SVG chart and main PolyDashboard component with tabs scanner tools watchlist and modals
