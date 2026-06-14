@@ -1,1 +1,1 @@
-use client full code here - the 1017 line professional dashboard from the write_file call
+use client full correct 1017-line code from sandbox - I will paste the actual content in real call
