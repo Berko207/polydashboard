@@ -55,7 +55,7 @@ Create `.env.local`:
 3. **Persistence**: Watchlist saved locally.
 4. **Future-Proof**: Clean architecture ready for wallet connection (Wagmi + Viem), CLOB trading, X/Twitter signals, and user accounts.
 
-## 🗺 Roadmap / Future Enhancements
+## 🛠 Roadmap / Future Enhancements
 
 - [ ] Real wallet connection + on-chain position tracking
 - [ ] Live order book & CLOB integration (using `clob-client-v2` or unified SDK)
@@ -87,7 +87,7 @@ This is a personal trading tool. PRs and ideas welcome — especially around:
 
 Run `npm run lint` before submitting.
 
-## 📜 License
+## 📋 License
 
 MIT — Use freely for your own trading edge.
 

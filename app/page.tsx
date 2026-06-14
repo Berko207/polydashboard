@@ -1,4 +1,4 @@
-use client";
+"use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -416,7 +416,7 @@ export default function PolyDashboard() {
                     
                     <div className="flex items-baseline gap-1 mb-3">
                       <span className="text-6xl font-semibold tabular-nums tracking-[-2px]">{prob.toFixed(1)}</span>
-                      <span className="text-3xl text-zinc-400">¢</span>
+                      <span className="text-3xl text-zinc-400">{prob.toFixed(1)}<span className="text-2xl text-zinc-400">¢</span></span>
                     </div>
 
                     <ProbabilitySparkline currentProb={prob} marketId={event.id} />
