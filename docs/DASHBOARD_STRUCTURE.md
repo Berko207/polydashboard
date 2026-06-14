@@ -3,46 +3,79 @@
 ## Core Philosophy
 Built following `trading-frontend-engineer` and `polymarket-navigator` skills:
 - Accuracy first
-- Low cognitive load
-- Actionable visualizations
-- Category-specific exploration using Gamma API tags
+- Low cognitive load for traders
+- Actionable visualizations over raw data
+- Strong separation between data layer (Gamma + future CLOB) and presentation
 
-## Recommended Navigation
+## Current Architecture (v0.2)
 
-### Sidebar
+- **Tab-based navigation** (Overview / Scanner / Edge Tools / Watchlist)
+- Client-side state + localStorage for watchlist
+- Gamma API fetching with fallback demo data
+- Kelly calculation implemented client-side in modal
+- Professional dark theme defined in globals.css
+
+## Recommended Future Navigation & Structure
+
+### Sidebar (Long-term Goal)
 - Overview (cross-category edge opportunities)
-- Sports (with dedicated World Cup subsection)
+- Sports (with dedicated subsections for major events)
 - Crypto
-- Geopolitics
-- Politics
-- Edge Scanner (global sortable table)
+- Geopolitics / Politics
+- Edge Scanner (global advanced table with virtual scrolling)
+- Portfolio & Positions
 - Watchlist
-- Elon / X Signals
+- Alerts & Signals (X integration)
 
 ### Top Bar
-- Global search
-- Quick category filters
-- Refresh
-- User profile (Google login ready)
+- Global search (using Gamma search endpoint)
+- Quick category filters + saved filters
+- Wallet connection status
+- Refresh + last updated
+- User profile / settings
 
-## Data Fetching Strategy (polymarket-navigator)
+## Data Layer Strategy (`polymarket-navigator`)
 
-Use these Gamma API patterns:
-- `tag_slug=sports` + special filters for major events (World Cup, NBA Finals, etc.)
-- `tag_slug=crypto`
-- `tag_slug=geopolitics`
-- `tag_slug=politics`
-- High volume + liquidity filters by default
+### Current
+- Basic `/events` with volume_min + simple filters
 
-## Key Components
-- Market cards with probability + volume
-- Probability path visualization (SVG)
-- Detail modal with Kelly position sizer
-- Watchlist with persistence
-- Category-specific sections
+### Next Steps
+- Use `tag_slug` heavily (politics, crypto, sports, etc.)
+- Implement pagination + infinite scroll / virtualized lists
+- Add `/public-search` for better discovery
+- Fetch individual market details + CLOB public endpoints for mid price & book
+- Add WebSocket layer for live updates where available
 
-## Future Enhancements
-- Real wallet connection (Wagmi + Viem)
-- X/Twitter integration for Elon signals
-- User accounts with Clerk or NextAuth
-- On-chain position tracking
+## Key Components Roadmap
+
+### Already Good
+- Market cards with probability + volume + sparklines
+- Detail modal with Kelly sizer
+- Watchlist persistence
+
+### High Priority Missing
+- Order book depth chart / visualization
+- Real probability history line chart (Recharts or Lightweight Charts)
+- Portfolio positions table with P&L
+- Order placement form (preview + submit to CLOB)
+- Category-specific rich views
+
+## State Management
+- Current: React useState + useEffect + localStorage
+- Recommended next: TanStack Query for server state + caching
+
+## Styling & UX
+- Excellent foundation in globals.css
+- Next: Component library approach (shadcn/ui style) for trading primitives (OrderBook, ProbabilityGauge, PositionSizer, etc.)
+
+## Authentication & Trading
+- Future: Wallet connection (Wagmi/Viem)
+- CLOB client integration for authenticated actions
+- API key management for builder/relayer if using gasless
+
+## Success Metrics for v1.0
+- Can discover high-edge markets quickly
+- Can calculate and see recommended position size instantly
+- Can view live order book for a market
+- Watchlist updates in real time across sessions
+- Smooth performance with 100+ markets
