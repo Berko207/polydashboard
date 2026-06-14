@@ -1,1 +1,1 @@
-use client full upgraded expert structure code with sidebar categories, tag-based fetching from Gamma API (polymarket-navigator), sections for Sports World Cup, Crypto, Geopolitics, Elon signals placeholder, improved UI with buttons and modals
+use client import React useState useEffect useMemo useCallback from react full correct PolyDashboard code with all tabs Overview Scanner Edge Tools Watchlist, buttons, modals, Gamma API fetching, probability display, Kelly tool, watchlist, dark trading theme, and proper JSX rendering as per expert structure
