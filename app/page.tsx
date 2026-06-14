@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { 
   RefreshCw, Search, Star, StarOff, TrendingUp, Target, Clock, 
-  DollarSign, BarChart3, Users 
+  DollarSign, BarChart3 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 
 // ==================== TYPES ====================
 interface Market {
@@ -57,16 +58,8 @@ const getPrimaryProbability = (market: Market): number => {
   }
 };
 
-const getAllProbabilities = (market: Market): number[] => {
-  try {
-    return JSON.parse(market.outcomePrices).map((p: string) => parseFloat(p) * 100);
-  } catch {
-    return [50];
-  }
-};
-
 const calculateKelly = (yourProb: number, marketProb: number, bankroll: number, fractional: number = 0.5) => {
-  const b = (100 - marketProb) / marketProb; // decimal odds for Yes side
+  const b = (100 - marketProb) / marketProb;
   const p = yourProb / 100;
   const q = 1 - p;
   const kelly = (b * p - q) / b;
@@ -80,7 +73,7 @@ const calculateKelly = (yourProb: number, marketProb: number, bankroll: number, 
 
 // ==================== PROBABILITY SPARKLINE ====================
 const ProbabilitySparkline: React.FC<{ currentProb: number; marketId: string }> = ({ currentProb, marketId }) => {
-  const points = useMemo(() => {
+  const points = React.useMemo(() => {
     const result: number[] = [];
     let prob = currentProb;
     for (let i = 0; i < 12; i++) {
@@ -111,12 +104,33 @@ const ProbabilitySparkline: React.FC<{ currentProb: number; marketId: string }> 
   );
 };
 
+// ==================== DATA FETCHING ====================
+const fetchEvents = async (minVolume: number, minLiquidity: number, sortBy: string): Promise<PolymarketEvent[]> => {
+  const params = new URLSearchParams({
+    limit: '40',
+    closed: 'false',
+    active: 'true',
+    order: sortBy === 'endDate' ? 'endDate' : 'volume',
+    ascending: sortBy === 'endDate' ? 'true' : 'false',
+    volume_min: minVolume.toString(),
+  });
+
+  const res = await fetch(`https://gamma-api.polymarket.com/events?${params}`);
+  
+  if (!res.ok) {
+    throw new Error('Failed to fetch markets from Polymarket');
+  }
+
+  const data: PolymarketEvent[] = await res.json();
+  
+  return data
+    .filter(e => e.markets?.length > 0 && e.liquidity >= minLiquidity)
+    .slice(0, 35);
+};
+
 // ==================== MAIN DASHBOARD ====================
 export default function PolyDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'scanner' | 'tools' | 'watchlist'>('overview');
-  const [events, setEvents] = useState<PolymarketEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [minVolume, setMinVolume] = useState(25000);
@@ -128,12 +142,11 @@ export default function PolyDashboard() {
   const [sortBy, setSortBy] = useState<'volume' | 'liquidity' | 'endDate'>('volume');
 
   // Load watchlist from localStorage
-  useEffect(() => {
+  React.useEffect(() => {
     const saved = localStorage.getItem('polydashboard-watchlist');
     if (saved) setWatchlist(JSON.parse(saved));
   }, []);
 
-  // Save watchlist
   const updateWatchlist = (newWatchlist: string[]) => {
     setWatchlist(newWatchlist);
     localStorage.setItem('polydashboard-watchlist', JSON.stringify(newWatchlist));
@@ -146,97 +159,21 @@ export default function PolyDashboard() {
     updateWatchlist(newList);
   };
 
-  // Fetch from Gamma API (enhanced with more filters)
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        limit: '40',
-        closed: 'false',
-        active: 'true',
-        order: sortBy === 'endDate' ? 'endDate' : 'volume',
-        ascending: sortBy === 'endDate' ? 'true' : 'false',
-        volume_min: minVolume.toString(),
-      });
-      
-      const res = await fetch(`https://gamma-api.polymarket.com/events?${params}`);
-      if (!res.ok) throw new Error('API error');
-      
-      const data: PolymarketEvent[] = await res.json();
-      const filtered = data
-        .filter(e => e.markets?.length > 0 && e.liquidity >= minLiquidity)
-        .slice(0, 35);
-      
-      setEvents(filtered);
-      setLastUpdated(new Date());
-    } catch (e) {
-      // High-quality demo data fallback
-      const demoEvents: PolymarketEvent[] = [
-        {
-          id: "demo-politics-1",
-          slug: "will-trump-win-2028-nomination",
-          title: "Will Donald Trump win the 2028 Republican presidential nomination?",
-          volume: 18750000,
-          liquidity: 1250000,
-          endDate: "2028-07-15T00:00:00Z",
-          closed: false,
-          active: true,
-          category: "Politics",
-          markets: [{ 
-            id: "m1", slug: "trump-2028", question: "Trump wins nomination?", 
-            outcomePrices: '["0.68","0.32"]', volume: 18750000, liquidity: 1250000, 
-            endDate: "2028-07-15T00:00:00Z", closed: false 
-          }],
-          resolutionSource: "Republican National Convention / official party announcement"
-        },
-        {
-          id: "demo-crypto-1",
-          slug: "bitcoin-above-150k-end-2026",
-          title: "Will Bitcoin reach $150,000 by December 31, 2026?",
-          volume: 9450000,
-          liquidity: 680000,
-          endDate: "2026-12-31T23:59:59Z",
-          closed: false,
-          active: true,
-          category: "Crypto",
-          markets: [{ 
-            id: "m2", slug: "btc-150k", question: "BTC ≥ $150k by EOY 2026?", 
-            outcomePrices: '["0.41","0.59"]', volume: 9450000, liquidity: 680000, 
-            endDate: "2026-12-31T23:59:59Z", closed: false 
-          }],
-          resolutionSource: "CoinGecko / CoinMarketCap price at 23:59:59 UTC on Dec 31, 2026"
-        },
-        {
-          id: "demo-sports-1",
-          slug: "spain-win-euro-2028",
-          title: "Will Spain win the UEFA Euro 2028?",
-          volume: 3200000,
-          liquidity: 245000,
-          endDate: "2028-07-14T23:00:00Z",
-          closed: false,
-          active: true,
-          category: "Sports",
-          markets: [{ 
-            id: "m3", slug: "spain-euro2028", question: "Spain wins Euro 2028?", 
-            outcomePrices: '["0.29","0.71"]', volume: 3200000, liquidity: 245000, 
-            endDate: "2028-07-14T23:00:00Z", closed: false 
-          }],
-          resolutionSource: "UEFA official match result"
-        }
-      ];
-      setEvents(demoEvents);
-      setLastUpdated(new Date());
-    }
-    setLoading(false);
-  }, [minVolume, minLiquidity, sortBy]);
+  // TanStack Query for events
+  const { 
+    data: events = [], 
+    isLoading, 
+    error, 
+    refetch,
+    isFetching 
+  } = useQuery({
+    queryKey: ['events', minVolume, minLiquidity, sortBy],
+    queryFn: () => fetchEvents(minVolume, minLiquidity, sortBy),
+    staleTime: 45 * 1000,
+    refetchInterval: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchEvents();
-    const interval = setInterval(fetchEvents, 60000); // Refresh every 60s
-    return () => clearInterval(interval);
-  }, [fetchEvents]);
-
-  // Filtered + Sorted events
+  // Filtered events
   const filteredEvents = useMemo(() => {
     let result = [...events];
     
@@ -252,7 +189,6 @@ export default function PolyDashboard() {
       result = result.filter(e => e.category === selectedCategory);
     }
     
-    // Sort
     if (sortBy === 'volume') {
       result.sort((a, b) => b.volume - a.volume);
     } else if (sortBy === 'liquidity') {
@@ -280,19 +216,50 @@ export default function PolyDashboard() {
   }, [events]);
 
   const openDetail = (event: PolymarketEvent) => setSelectedEvent(event);
-
   const closeDetail = () => setSelectedEvent(null);
 
-  // Per-market Kelly for the selected event
   const selectedMarket = selectedEvent?.markets[0];
   const marketProb = selectedMarket ? getPrimaryProbability(selectedMarket) : 50;
   const kellyResult = selectedMarket 
     ? calculateKelly(modelProb, marketProb, bankroll) 
     : null;
 
+  // Demo data for when API fails completely
+  const demoEvents: PolymarketEvent[] = React.useMemo(() => [
+    {
+      id: "demo-politics-1",
+      slug: "will-trump-win-2028-nomination",
+      title: "Will Donald Trump win the 2028 Republican presidential nomination?",
+      volume: 18750000,
+      liquidity: 1250000,
+      endDate: "2028-07-15T00:00:00Z",
+      closed: false,
+      active: true,
+      category: "Politics",
+      markets: [{ id: "m1", slug: "trump-2028", question: "Trump wins nomination?", outcomePrices: '["0.68","0.32"]', volume: 18750000, liquidity: 1250000, endDate: "2028-07-15T00:00:00Z", closed: false }],
+      resolutionSource: "Republican National Convention / official party announcement"
+    },
+    {
+      id: "demo-crypto-1",
+      slug: "bitcoin-above-150k-end-2026",
+      title: "Will Bitcoin reach $150,000 by December 31, 2026?",
+      volume: 9450000,
+      liquidity: 680000,
+      endDate: "2026-12-31T23:59:59Z",
+      closed: false,
+      active: true,
+      category: "Crypto",
+      markets: [{ id: "m2", slug: "btc-150k", question: "BTC ≥ $150k by EOY 2026?", outcomePrices: '["0.41","0.59"]', volume: 9450000, liquidity: 680000, endDate: "2026-12-31T23:59:59Z", closed: false }],
+      resolutionSource: "CoinGecko / CoinMarketCap price at 23:59:59 UTC on Dec 31, 2026"
+    }
+  ], []);
+
+  const displayEvents = events.length > 0 ? filteredEvents : demoEvents;
+  const isUsingDemo = events.length === 0;
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Professional Navbar */}
+      {/* Navbar */}
       <nav className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -305,7 +272,6 @@ export default function PolyDashboard() {
             </div>
           </div>
 
-          {/* Tabs */}
           <div className="flex items-center gap-1 bg-zinc-900 rounded-2xl p-1 text-sm">
             {[ 
               { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -330,18 +296,15 @@ export default function PolyDashboard() {
           </div>
 
           <div className="flex items-center gap-3 text-sm">
-            {lastUpdated && (
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-mono">
-                <Clock size={13} />
-                {formatDistanceToNow(lastUpdated, { addSuffix: true })}
-              </div>
+            {isUsingDemo && (
+              <div className="text-xs px-3 py-1 bg-amber-500/10 text-amber-400 rounded-full">Demo Mode</div>
             )}
             <button 
-              onClick={fetchEvents} 
-              disabled={loading}
+              onClick={() => refetch()}
+              disabled={isFetching}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-2xl text-sm transition disabled:opacity-50"
             >
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />
               Refresh
             </button>
           </div>
@@ -349,6 +312,13 @@ export default function PolyDashboard() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-sm">
+            Failed to load live market data. Showing demo data. {error instanceof Error ? error.message : ''}
+          </div>
+        )}
+
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div>
@@ -356,9 +326,6 @@ export default function PolyDashboard() {
               <div>
                 <h1 className="text-6xl font-semibold tracking-tighter">Market Intelligence</h1>
                 <p className="text-2xl text-zinc-400 mt-1">Real-time edge discovery on Polymarket</p>
-              </div>
-              <div className="text-right text-sm text-zinc-500">
-                Live data from Gamma API • Auto-refreshes
               </div>
             </div>
 
@@ -387,12 +354,11 @@ export default function PolyDashboard() {
               </div>
             </div>
 
-            {/* Top Markets Preview */}
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <Target size={20} /> Top Opportunities
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredEvents.slice(0, 6).map(event => {
+              {displayEvents.slice(0, 6).map(event => {
                 const prob = getPrimaryProbability(event.markets[0]);
                 const isWatched = watchlist.includes(event.id);
                 return (
@@ -416,7 +382,7 @@ export default function PolyDashboard() {
                     
                     <div className="flex items-baseline gap-1 mb-3">
                       <span className="text-6xl font-semibold tabular-nums tracking-[-2px]">{prob.toFixed(1)}</span>
-                      <span className="text-3xl text-zinc-400">{prob.toFixed(1)}<span className="text-2xl text-zinc-400">¢</span></span>
+                      <span className="text-3xl text-zinc-400">¢</span>
                     </div>
 
                     <ProbabilitySparkline currentProb={prob} marketId={event.id} />
@@ -437,10 +403,9 @@ export default function PolyDashboard() {
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-4xl font-semibold tracking-tight">Market Scanner</h2>
-              <div className="text-sm text-zinc-500">{filteredEvents.length} markets • Live</div>
+              <div className="text-sm text-zinc-500">{displayEvents.length} markets {isUsingDemo ? '(Demo)' : '• Live'}</div>
             </div>
 
-            {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
               <div className="flex-1 min-w-[260px] relative">
                 <Search className="absolute left-4 top-3.5 text-zinc-500" size={18} />
@@ -472,52 +437,35 @@ export default function PolyDashboard() {
               </select>
             </div>
 
-            {/* Advanced Filters */}
             <div className="flex gap-6 mb-6 text-sm">
               <div className="flex items-center gap-3">
                 <span className="text-zinc-500">Min Volume</span>
-                <input 
-                  type="range" min="5000" max="500000" step="5000" value={minVolume} 
-                  onChange={e => setMinVolume(Number(e.target.value))}
-                  className="accent-blue-500 w-40"
-                />
+                <input type="range" min="5000" max="500000" step="5000" value={minVolume} onChange={e => setMinVolume(Number(e.target.value))} className="accent-blue-500 w-40" />
                 <span className="font-mono text-xs w-16">{formatVolume(minVolume)}</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-zinc-500">Min Liquidity</span>
-                <input 
-                  type="range" min="1000" max="1000000" step="1000" value={minLiquidity} 
-                  onChange={e => setMinLiquidity(Number(e.target.value))}
-                  className="accent-blue-500 w-40"
-                />
+                <input type="range" min="1000" max="1000000" step="1000" value={minLiquidity} onChange={e => setMinLiquidity(Number(e.target.value))} className="accent-blue-500 w-40" />
                 <span className="font-mono text-xs w-16">{formatLiquidity(minLiquidity)}</span>
               </div>
             </div>
 
-            {/* Scanner Table */}
             <div className="card rounded-3xl overflow-hidden">
               <div className="divide-y divide-zinc-800">
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="px-6 py-5 flex items-center gap-4 skeleton h-16" />
-                  ))
-                ) : filteredEvents.length === 0 ? (
+                {isLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => <div key={i} className="px-6 py-5 skeleton h-16" />)
+                ) : displayEvents.length === 0 ? (
                   <div className="px-6 py-12 text-center text-zinc-500">No markets match your filters.</div>
                 ) : (
-                  filteredEvents.map(event => {
+                  displayEvents.map(event => {
                     const prob = getPrimaryProbability(event.markets[0]);
                     const isWatched = watchlist.includes(event.id);
                     return (
-                      <div 
-                        key={event.id} 
-                        onClick={() => openDetail(event)}
-                        className="table-row px-6 py-4 flex items-center justify-between cursor-pointer group"
-                      >
+                      <div key={event.id} onClick={() => openDetail(event)} className="table-row px-6 py-4 flex items-center justify-between cursor-pointer group">
                         <div className="pr-6 flex-1">
                           <div className="font-medium text-[15px] group-hover:text-blue-400 transition line-clamp-1">{event.title}</div>
                           <div className="text-xs text-zinc-500 mt-0.5">{event.category} • Ends {format(new Date(event.endDate), 'MMM d, yyyy')}</div>
                         </div>
-                        
                         <div className="flex items-center gap-8 text-sm tabular-nums">
                           <div className="text-right">
                             <div className="font-mono text-emerald-400 text-lg font-semibold">{prob.toFixed(1)}<span className="text-xs text-zinc-500">¢</span></div>
@@ -530,10 +478,7 @@ export default function PolyDashboard() {
                             <div className="font-medium">{formatLiquidity(event.liquidity)}</div>
                             <div className="text-[10px] text-zinc-500">liquidity</div>
                           </div>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); toggleWatchlist(event.id); }}
-                            className="p-2 text-zinc-400 hover:text-yellow-400 transition"
-                          >
+                          <button onClick={(e) => { e.stopPropagation(); toggleWatchlist(event.id); }} className="p-2 text-zinc-400 hover:text-yellow-400 transition">
                             {isWatched ? <StarOff size={18} className="text-yellow-400" /> : <Star size={18} />}
                           </button>
                         </div>
@@ -546,7 +491,7 @@ export default function PolyDashboard() {
           </div>
         )}
 
-        {/* EDGE TOOLS TAB - Full Kelly Calculator */}
+        {/* EDGE TOOLS TAB */}
         {activeTab === 'tools' && (
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
@@ -557,12 +502,7 @@ export default function PolyDashboard() {
             <div className="card rounded-3xl p-8 space-y-8">
               <div>
                 <label className="text-xs tracking-widest text-zinc-500">YOUR BANKROLL (USD)</label>
-                <input 
-                  type="number" 
-                  value={bankroll} 
-                  onChange={e => setBankroll(Math.max(1000, Number(e.target.value)))} 
-                  className="input w-full text-5xl font-semibold py-6 mt-2 rounded-2xl tracking-tighter" 
-                />
+                <input type="number" value={bankroll} onChange={e => setBankroll(Math.max(1000, Number(e.target.value)))} className="input w-full text-5xl font-semibold py-6 mt-2 rounded-2xl tracking-tighter" />
               </div>
 
               <div>
@@ -570,11 +510,7 @@ export default function PolyDashboard() {
                   <span>YOUR ESTIMATED TRUE PROBABILITY</span>
                   <span className="font-mono text-emerald-400">{modelProb}%</span>
                 </div>
-                <input 
-                  type="range" min="25" max="95" step="1" value={modelProb} 
-                  onChange={e => setModelProb(Number(e.target.value))}
-                  className="accent-blue-500 w-full" 
-                />
+                <input type="range" min="25" max="95" step="1" value={modelProb} onChange={e => setModelProb(Number(e.target.value))} className="accent-blue-500 w-full" />
                 <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
                   <div>Low conviction</div>
                   <div>High conviction</div>
@@ -582,12 +518,8 @@ export default function PolyDashboard() {
               </div>
 
               <div className="pt-6 border-t border-zinc-800 text-sm text-zinc-400">
-                Enter a market in the <span className="text-white">Scanner</span> or <span className="text-white">Overview</span> to see personalized Kelly sizing in the detail view.
+                Enter a market in the Scanner or Overview to see personalized Kelly sizing in the detail view.
               </div>
-            </div>
-
-            <div className="mt-6 text-xs text-center text-zinc-500">
-              Uses half-Kelly by default for risk management. Full Kelly can be aggressive.
             </div>
           </div>
         )}
@@ -596,7 +528,6 @@ export default function PolyDashboard() {
         {activeTab === 'watchlist' && (
           <div>
             <h2 className="text-4xl font-semibold tracking-tight mb-8">Your Watchlist</h2>
-            
             {watchlist.length === 0 ? (
               <div className="card rounded-3xl p-12 text-center">
                 <Star className="mx-auto mb-4 text-zinc-700" size={48} />
@@ -605,7 +536,7 @@ export default function PolyDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {events.filter(e => watchlist.includes(e.id)).map(event => {
+                {displayEvents.filter(e => watchlist.includes(e.id)).map(event => {
                   const prob = getPrimaryProbability(event.markets[0]);
                   return (
                     <div key={event.id} onClick={() => openDetail(event)} className="market-card card rounded-3xl p-6 cursor-pointer">
@@ -627,7 +558,7 @@ export default function PolyDashboard() {
         )}
       </div>
 
-      {/* ENHANCED DETAIL MODAL */}
+      {/* Detail Modal */}
       <AnimatePresence>
         {selectedEvent && selectedMarket && (
           <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4" onClick={closeDetail}>
@@ -663,7 +594,7 @@ export default function PolyDashboard() {
                   
                   <div className="lg:col-span-2 space-y-4 text-sm">
                     <div className="flex justify-between py-1 border-b border-zinc-800">
-                      <span className="text-zinc-400">24h Volume</span>
+                      <span className="text-zinc-400">Volume</span>
                       <span className="font-mono">{formatVolume(selectedEvent.volume)}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-zinc-800">
@@ -672,12 +603,11 @@ export default function PolyDashboard() {
                     </div>
                     <div className="flex justify-between py-1 border-b border-zinc-800">
                       <span className="text-zinc-400">Resolution Source</span>
-                      <span className="text-right text-xs leading-tight">{selectedEvent.resolutionSource || 'Official source / Polymarket rules'}</span>
+                      <span className="text-right text-xs leading-tight">{selectedEvent.resolutionSource || 'Official source'}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Kelly Calculator in Modal */}
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -711,16 +641,13 @@ export default function PolyDashboard() {
                   )}
 
                   {kellyResult && kellyResult.edge <= 0 && (
-                    <div className="mt-6 text-sm text-amber-400">No positive edge detected at current model probability.</div>
+                    <div className="mt-6 text-sm text-amber-400">No positive edge at current model probability.</div>
                   )}
                 </div>
               </div>
 
               <div className="border-t border-zinc-800 px-8 py-5 bg-zinc-900/50 flex gap-3">
-                <button 
-                  onClick={() => toggleWatchlist(selectedEvent.id)}
-                  className="flex-1 py-3 rounded-2xl border border-zinc-700 hover:bg-zinc-800 transition flex items-center justify-center gap-2 text-sm"
-                >
+                <button onClick={() => toggleWatchlist(selectedEvent.id)} className="flex-1 py-3 rounded-2xl border border-zinc-700 hover:bg-zinc-800 transition flex items-center justify-center gap-2 text-sm">
                   {watchlist.includes(selectedEvent.id) ? <><StarOff size={16} /> Remove from Watchlist</> : <><Star size={16} /> Add to Watchlist</>}
                 </button>
                 <button onClick={closeDetail} className="flex-1 py-3 bg-white text-black rounded-2xl font-medium text-sm hover:bg-zinc-200 transition">
