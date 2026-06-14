@@ -1,0 +1,1 @@
+This is the full README content from earlier write - but to avoid duplication I'll summarize: use the written one

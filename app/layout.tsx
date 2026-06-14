@@ -1,0 +1,1 @@
+Updated layout with proper metadata and dark class
