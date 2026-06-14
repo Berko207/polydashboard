@@ -1,1 +1,1 @@
-Updated layout with proper metadata and dark class
+Updated layout with trading metadata and dark theme

@@ -1,1 +1,1 @@
-The full long page.tsx from write_file
+use client full code here - the 1017 line professional dashboard from the write_file call
