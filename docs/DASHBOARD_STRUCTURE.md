@@ -1,81 +1,45 @@
-# PolyDashboard Structure (Expert Trading Dashboard)
+# PolyDashboard Structure
 
-## Core Philosophy
-Built following `trading-frontend-engineer` and `polymarket-navigator` skills:
-- Accuracy first
-- Low cognitive load for traders
-- Actionable visualizations over raw data
-- Strong separation between data layer (Gamma + future CLOB) and presentation
+Connector-backed, read-only dashboard. The browser never calls Polymarket
+directly — all REST reads go through a server-side proxy.
 
-## Current Architecture (v0.2)
+## Data flow
 
-- **Tab-based navigation** (Overview / Scanner / Edge Tools / Watchlist)
-- Client-side state + localStorage for watchlist
-- Gamma API fetching with fallback demo data
-- Kelly calculation implemented client-side in modal
-- Professional dark theme defined in globals.css
+```
+Browser (components + useOrderBook)
+   │  fetch /api/gamma | /api/clob | /api/data        ← REST, CORS-safe
+   ▼
+Next.js route handlers  →  lib/pm/proxy (server-only) ──► upstream Polymarket APIs
+                                                            (gamma / clob / data)
 
-## Recommended Future Navigation & Structure
+Browser  ── WebSocket (CORS-exempt) ──► Polymarket market channel  (live book)
+```
 
-### Sidebar (Long-term Goal)
-- Overview (cross-category edge opportunities)
-- Sports (with dedicated subsections for major events)
-- Crypto
-- Geopolitics / Politics
-- Edge Scanner (global advanced table with virtual scrolling)
-- Portfolio & Positions
-- Watchlist
-- Alerts & Signals (X integration)
+REST goes through the proxy; the live order book connects to the Polymarket
+WebSocket directly (WS is exempt from CORS).
 
-### Top Bar
-- Global search (using Gamma search endpoint)
-- Quick category filters + saved filters
-- Wallet connection status
-- Refresh + last updated
-- User profile / settings
+## Component tree
 
-## Data Layer Strategy (`polymarket-navigator`)
+```
+App (app/page.tsx)
+├── Header                      # search query
+├── MarketList                  # search + volume rank → selects a Market
+└── MarketDetail                # hero prob readout + outcome picker
+    ├── OrderBook               # live depth ladder, spread, last trade
+    └── PriceChart              # SVG sparkline
+```
 
-### Current
-- Basic `/events` with volume_min + simple filters
+## Live state
 
-### Next Steps
-- Use `tag_slug` heavily (politics, crypto, sports, etc.)
-- Implement pagination + infinite scroll / virtualized lists
-- Add `/public-search` for better discovery
-- Fetch individual market details + CLOB public endpoints for mid price & book
-- Add WebSocket layer for live updates where available
+`useOrderBook` wraps `lib/pm/ws.ts` (`MarketSocket`):
+- subscribe frame on open, ~10s PING keepalive
+- apply `book` snapshots, then `price_change` deltas onto the ladder
+- exponential-backoff reconnect
+- a `live` flag is surfaced to the UI from connection status
 
-## Key Components Roadmap
+## Roadmap (P3 — on top of the live-data core)
 
-### Already Good
-- Market cards with probability + volume + sparklines
-- Detail modal with Kelly sizer
-- Watchlist persistence
-
-### High Priority Missing
-- Order book depth chart / visualization
-- Real probability history line chart (Recharts or Lightweight Charts)
-- Portfolio positions table with P&L
-- Order placement form (preview + submit to CLOB)
-- Category-specific rich views
-
-## State Management
-- Current: React useState + useEffect + localStorage
-- Recommended next: TanStack Query for server state + caching
-
-## Styling & UX
-- Excellent foundation in globals.css
-- Next: Component library approach (shadcn/ui style) for trading primitives (OrderBook, ProbabilityGauge, PositionSizer, etc.)
-
-## Authentication & Trading
-- Future: Wallet connection (Wagmi/Viem)
-- CLOB client integration for authenticated actions
-- API key management for builder/relayer if using gasless
-
-## Success Metrics for v1.0
-- Can discover high-edge markets quickly
-- Can calculate and see recommended position size instantly
-- Can view live order book for a market
-- Watchlist updates in real time across sessions
-- Smooth performance with 100+ markets
+- KPI cards: 24h volume, funding rate, Greeks
+- Kelly-criterion position calculator (driven by live mid prices)
+- Category / timeframe filters
+- Icon polish
