@@ -37,6 +37,14 @@ export async function handleProxy(upstream: Upstream, req: Request): Promise<Res
   const path = params.get("path") ?? "";
   params.delete("path");
 
+  // SSRF guard: only allow simple endpoint paths. This — together with building
+  // the URL by string-concatenation onto a FIXED base (never `new URL(path,
+  // base)`, which would let an absolute/scheme-relative path swap the host) —
+  // means a crafted `path` can never reach a host other than the upstream.
+  if (!/^[a-z0-9/_-]+$/i.test(path)) {
+    return Response.json({ error: "invalid_path", path }, { status: 400 });
+  }
+
   const cleanPath = "/" + path.replace(/^\/+/, "");
   const qs = params.toString();
   const url = `${UPSTREAM_BASE[upstream]}${cleanPath}${qs ? `?${qs}` : ""}`;

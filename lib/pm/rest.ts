@@ -136,7 +136,9 @@ export async function fetchMarkets(params: FetchMarketsParams = {}): Promise<Mar
   });
 
   const list = Array.isArray(raw) ? (raw as GammaRawMarket[]) : [];
-  return list.map(normalizeMarket);
+  // Drop markets with no tradable outcomes (empty/missing clobTokenIds) so the
+  // discovery UI never renders unclickable rows with no book to subscribe to.
+  return list.map(normalizeMarket).filter((m) => m.outcomes.length > 0);
 }
 
 // ── CLOB: order book snapshot ───────────────────────────────────────────────
