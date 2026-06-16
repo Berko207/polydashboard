@@ -28,6 +28,9 @@ export interface GammaRawMarket {
   question: string;
   conditionId: string;
   slug?: string;
+  // Short per-market label used when a market is one leg of a grouped event
+  // (e.g. "Brazil" within "World Cup Winner"). Absent on standalone markets.
+  groupItemTitle?: string;
   outcomes: string; // JSON-encoded string[]
   outcomePrices: string; // JSON-encoded string[]
   clobTokenIds: string; // JSON-encoded string[]
@@ -38,6 +41,35 @@ export interface GammaRawMarket {
   closed?: boolean;
   endDate?: string;
   image?: string;
+  [key: string]: unknown;
+}
+
+// Gamma's `/events` endpoint groups one or more markets under a single theme and
+// carries the category tags. rest.ts normalizes the nested markets with the same
+// `normalizeMarket` used for the flat `/markets` feed.
+export interface GammaRawTag {
+  id?: string | number;
+  label?: string;
+  slug?: string;
+}
+
+export interface GammaRawEvent {
+  id: string | number;
+  title?: string;
+  slug?: string;
+  description?: string;
+  image?: string;
+  icon?: string;
+  volume?: string | number;
+  volume24hr?: string | number;
+  liquidity?: string | number;
+  startDate?: string;
+  endDate?: string;
+  active?: boolean;
+  closed?: boolean;
+  archived?: boolean;
+  tags?: GammaRawTag[];
+  markets?: GammaRawMarket[];
   [key: string]: unknown;
 }
 
@@ -53,6 +85,7 @@ export interface Market {
   question: string;
   conditionId: ConditionId;
   slug?: string;
+  groupItemTitle?: string; // short label when part of a grouped event
   outcomes: Outcome[]; // index-aligned across label/price/tokenId
   volume: number;
   volume24hr: number;
@@ -61,6 +94,28 @@ export interface Market {
   closed: boolean;
   endDate?: string;
   image?: string;
+}
+
+// ── Tags & events (normalized) ───────────────────────────────────────────────
+export interface Tag {
+  id: string;
+  label: string;
+  slug: string;
+}
+
+export interface PMEvent {
+  id: string;
+  title: string;
+  slug?: string;
+  image?: string;
+  volume: number;
+  volume24hr: number;
+  liquidity: number;
+  endDate?: string;
+  active: boolean;
+  closed: boolean;
+  tags: Tag[];
+  markets: Market[]; // normalized; only token-bearing markets are kept
 }
 
 // ── Order book ──────────────────────────────────────────────────────────────

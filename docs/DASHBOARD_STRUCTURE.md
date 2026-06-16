@@ -23,11 +23,20 @@ WebSocket directly (WS is exempt from CORS).
 ```
 App (app/page.tsx)
 ├── Header                      # search query
-├── MarketList                  # search + volume rank → selects a Market
-└── MarketDetail                # hero prob readout + outcome picker
-    ├── OrderBook               # live depth ladder, spread, last trade
-    └── PriceChart              # SVG sparkline
+├── CategoryBar                 # curated tag/sort tabs (lib/pm/categories)
+├── EventList                   # /events for the active category → selects a PMEvent
+└── EventDetail                 # event header + tags
+    ├── (grouped event)         # ranked list of constituent markets → pick one
+    └── MarketPanel             # outcome picker for the selected market
+        ├── ProbBar             # per-outcome probabilities
+        ├── PriceChart          # SVG sparkline
+        └── OrderBook           # live depth ladder, spread, mid
 ```
+
+Discovery is **event-first**: Gamma `/events` groups markets under a theme
+(e.g. "World Cup Winner" → one market per team). Single-market events render the
+trading panel directly; grouped events rank their legs by implied ("Yes")
+probability and drill into a live book + chart on selection.
 
 ## Live state
 
@@ -41,5 +50,7 @@ App (app/page.tsx)
 
 - KPI cards: 24h volume, funding rate, Greeks
 - Kelly-criterion position calculator (driven by live mid prices)
-- Category / timeframe filters
+- ~~Category filters~~ ✅ done — `CategoryBar` + event-first discovery
+- Pagination / infinite scroll for events; richer subcategory chips
+- Timeframe filters; live Gamma `/public-search` instead of client-side filter
 - Icon polish

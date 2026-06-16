@@ -10,11 +10,15 @@ import {
   asConditionId,
   asTokenId,
   type BookLevel,
+  type GammaRawEvent,
   type GammaRawMarket,
+  type GammaRawTag,
   type Market,
   type Outcome,
   type OrderBookSnapshot,
+  type PMEvent,
   type PricePoint,
+  type Tag,
   type TokenId,
 } from "./types";
 
@@ -93,6 +97,7 @@ export function normalizeMarket(raw: GammaRawMarket): Market {
     question: raw.question,
     conditionId: asConditionId(raw.conditionId),
     slug: raw.slug,
+    groupItemTitle: raw.groupItemTitle,
     outcomes: buildOutcomes(raw),
     volume: toNumber(raw.volume),
     volume24hr: toNumber(raw.volume24hr),
@@ -139,6 +144,75 @@ export async function fetchMarkets(params: FetchMarketsParams = {}): Promise<Mar
   // Drop markets with no tradable outcomes (empty/missing clobTokenIds) so the
   // discovery UI never renders unclickable rows with no book to subscribe to.
   return list.map(normalizeMarket).filter((m) => m.outcomes.length > 0);
+}
+
+// ── Gamma: events (category-grouped discovery) ───────────────────────────────
+
+function normalizeTag(raw: GammaRawTag): Tag {
+  return { id: String(raw.id ?? ""), label: String(raw.label ?? ""), slug: String(raw.slug ?? "") };
+}
+
+/**
+ * Normalize a Gamma event: its nested markets go through the same normalizer as
+ * the flat feed (token-less markets dropped), and tags are flattened to slugs the
+ * category bar can match. Title falls back to the first market's question.
+ */
+export function normalizeEvent(raw: GammaRawEvent): PMEvent {
+  const rawMarkets = Array.isArray(raw.markets) ? raw.markets : [];
+  const markets = rawMarkets.map(normalizeMarket).filter((m) => m.outcomes.length > 0);
+  const rawTags = Array.isArray(raw.tags) ? raw.tags : [];
+
+  return {
+    id: String(raw.id),
+    title: raw.title ?? markets[0]?.question ?? "Untitled event",
+    slug: raw.slug,
+    image: raw.image ?? raw.icon,
+    volume: toNumber(raw.volume),
+    volume24hr: toNumber(raw.volume24hr),
+    liquidity: toNumber(raw.liquidity),
+    endDate: raw.endDate,
+    active: raw.active ?? true,
+    closed: raw.closed ?? false,
+    tags: rawTags.map(normalizeTag).filter((t) => t.slug.length > 0),
+    markets,
+  };
+}
+
+export interface FetchEventsParams {
+  limit?: number;
+  offset?: number;
+  order?: string; // e.g. "volume24hr" | "startDate" | "liquidity"
+  ascending?: boolean;
+  active?: boolean;
+  closed?: boolean;
+  tagSlug?: string; // category filter; omit for "all / trending"
+}
+
+export async function fetchEvents(params: FetchEventsParams = {}): Promise<PMEvent[]> {
+  const {
+    limit = 50,
+    offset = 0,
+    order = "volume24hr",
+    ascending = false,
+    active = true,
+    closed = false,
+    tagSlug,
+  } = params;
+
+  const raw = await proxyGet("gamma", "events", {
+    limit,
+    offset,
+    order,
+    ascending,
+    active,
+    closed,
+    tag_slug: tagSlug,
+  });
+
+  const list = Array.isArray(raw) ? (raw as GammaRawEvent[]) : [];
+  // Keep only events that still have at least one tradable market after
+  // token-less markets are filtered out.
+  return list.map(normalizeEvent).filter((e) => e.markets.length > 0);
 }
 
 // ── CLOB: order book snapshot ───────────────────────────────────────────────
