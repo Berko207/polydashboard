@@ -1,33 +1,24 @@
-# Authentication & API Keys Plan
+# Authentication & API Keys
 
-## Google Login
-Recommended: Use **Clerk** (easiest integration in Next.js)
+## Current state: demo-safe
 
-Benefits:
-- Google OAuth in < 10 minutes
-- User management + metadata storage
-- Secure session handling
+No authentication, no trading, no secrets. The dashboard is read-only.
 
-Alternative: NextAuth.js v5
+## Read-only access (today)
 
-## Polymarket API Keys / Trading Access
+- The browser needs **no secrets**. It only talks to our own `/api/*` proxy
+  routes and the public Polymarket WebSocket.
+- The Vercel proxy makes **standard outbound internet** GET requests to
+  Polymarket's REST hosts. No Polymarket API keys are required for reads.
 
-### Recommended Approach
-1. **Primary**: Wallet connection using Wagmi + Viem (best for Polymarket CLOB)
-2. **Secondary**: Allow users to paste CLOB API key in Settings (encrypted)
+## Live trading (later phases)
 
-### Security Rules
-- Never store private keys in plain text
-- Use Clerk `privateMetadata` or encrypted localStorage
-- Short-lived tokens only
-- Clear warnings in UI
+Trading will require a **server-side signing layer**, never the browser:
 
-## Implementation Steps
-1. Add Clerk to the project
-2. Create Settings modal for API keys / wallet connection
-3. Store watchlist and preferences per user
-4. Add protected routes for trading features
+- Order signing / execution via `py-clob-client-v2`, run on Fly.io.
+- State (positions, orders, preferences) in Supabase.
+- All secrets — signing keys, Supabase service credentials — stay server-side
+  and out of the client bundle.
 
-## Current Status
-- Placeholder ready in UI
-- Full implementation planned next
+User auth (e.g. wallet connect or an OAuth provider) is deferred to those
+phases and is not needed for the current read-only dashboard.
